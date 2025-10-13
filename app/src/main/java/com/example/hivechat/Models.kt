@@ -10,7 +10,8 @@ data class Device(
     val name: String,
     val ipAddress: String,
     val port: Int = 8888,
-    val lastSeen: Long = System.currentTimeMillis()
+    val lastSeen: Long = System.currentTimeMillis(),
+    val unreadCount: Int = 0 // Add this for unread messages
 )
 
 /**

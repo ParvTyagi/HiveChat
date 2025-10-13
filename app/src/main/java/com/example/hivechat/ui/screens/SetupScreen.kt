@@ -3,6 +3,7 @@
 package com.example.hivechat.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -18,18 +19,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.hivechat.R
 import com.example.hivechat.ui.screens.BeeFly
 import com.example.hivechat.ui.theme.*
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.random.Random
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -51,13 +46,14 @@ fun SetupScreen(
             ),
         contentAlignment = Alignment.Center
     ) {
-        // Card container
+        // Card container with brown border
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color.White)
+                .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(24.dp)) // 1px brown border
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -102,7 +98,7 @@ fun SetupScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Name Input
+            // Name Input with single brown border
             OutlinedTextField(
                 value = name,
                 onValueChange = {
@@ -110,7 +106,7 @@ fun SetupScreen(
                     showError = false
                 },
                 label = { Text("Your Name") },
-                placeholder = { Text("Enter your name") },
+                placeholder = { Text("Enter Username") },
                 singleLine = true,
                 isError = showError,
                 supportingText = if (showError) {
@@ -120,8 +116,8 @@ fun SetupScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp)),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = HoneyYellow,
-                    unfocusedBorderColor = HoneyGold.copy(alpha = 0.5f),
+                    focusedBorderColor = Color(0xFFA0522D), // brown
+                    unfocusedBorderColor = Color(0xFFA0522D), // brown
                     focusedLabelColor = HoneyYellow,
                     cursorColor = HoneyYellow
                 ),
@@ -137,7 +133,7 @@ fun SetupScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Join button
+            // Join button with border
             Button(
                 onClick = {
                     if (name.isNotBlank()) onNameSet(name.trim())
@@ -146,7 +142,8 @@ fun SetupScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
-                    .clip(RoundedCornerShape(28.dp)),
+                    .clip(RoundedCornerShape(28.dp))
+                    .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(28.dp)), // brown border
                 colors = ButtonDefaults.buttonColors(
                     containerColor = HoneyYellow,
                     contentColor = BeeBlack

@@ -15,83 +15,102 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val networkManager = NetworkManager(application)
 
-    // User name
     private val _userName = MutableStateFlow("")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
-    // Discovered devices
     val devices: StateFlow<List<Device>> = networkManager.devices
-
-    // Discovery state
     val isDiscovering: StateFlow<Boolean> = networkManager.isDiscovering
-
-    // All messages
     val allMessages: StateFlow<Map<String, List<Message>>> = networkManager.messages
 
-    // Currently selected device
     private val _selectedDevice = MutableStateFlow<Device?>(null)
     val selectedDevice: StateFlow<Device?> = _selectedDevice.asStateFlow()
 
-    /**
-     * Set user name and initialize network
-     */
+    // Map to store unread message counts per device
+    private val _unreadMessages = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val unreadMessages: StateFlow<Map<String, Int>> = _unreadMessages.asStateFlow()
+
+    private var previousMessageCounts = mutableMapOf<String, Int>()
+
+    init {
+        // Monitor incoming messages and update unread counts
+        viewModelScope.launch {
+            allMessages.collect { messageMap ->
+                val currentDevice = _selectedDevice.value
+                messageMap.forEach { (deviceId, messages) ->
+                    val previousCount = previousMessageCounts[deviceId] ?: 0
+                    val currentCount = messages.size
+
+                    // Check if there are new messages
+                    if (currentCount > previousCount) {
+                        val newMessages = messages.drop(previousCount)
+                        // Only increment unread if not currently viewing this device's chat
+                        if (deviceId != currentDevice?.id) {
+                            // Count messages that are from the other user (not sent by me)
+                            val unreadCount = newMessages.count { message ->
+                                message.senderId != _userName.value
+                            }
+                            if (unreadCount > 0) {
+                                incrementUnreadBy(deviceId, unreadCount)
+                            }
+                        }
+                    }
+
+                    previousMessageCounts[deviceId] = currentCount
+                }
+            }
+        }
+    }
+
     fun setUserName(name: String) {
         _userName.value = name
         networkManager.initialize(name)
 
-        // Save name to preferences
-        val prefs = getApplication<Application>().getSharedPreferences("HiveChat", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>()
+            .getSharedPreferences("HiveChat", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("user_name", name).apply()
     }
 
-    /**
-     * Get saved user name
-     */
     fun getSavedUserName(): String? {
-        val prefs = getApplication<Application>().getSharedPreferences("HiveChat", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>()
+            .getSharedPreferences("HiveChat", android.content.Context.MODE_PRIVATE)
         return prefs.getString("user_name", null)
     }
 
-    /**
-     * Clear saved user name (for logout)
-     */
     fun clearUserName() {
-        val prefs = getApplication<Application>().getSharedPreferences("HiveChat", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>()
+            .getSharedPreferences("HiveChat", android.content.Context.MODE_PRIVATE)
         prefs.edit().remove("user_name").apply()
         _userName.value = ""
     }
 
-    /**
-     * Start device discovery
-     */
     fun startDiscovery() {
         networkManager.startDiscovery()
     }
 
-    /**
-     * Stop device discovery
-     */
     fun stopDiscovery() {
         networkManager.stopDiscovery()
     }
 
-    /**
-     * Select a device to chat with
-     */
-    fun selectDevice(device: Device) {
-        _selectedDevice.value = device
+    fun startDiscoveryLimited(durationMs: Long = 10_000L) {
+        startDiscovery()
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(durationMs)
+            stopDiscovery()
+        }
     }
 
-    /**
-     * Clear selected device
-     */
+    fun selectDevice(device: Device) {
+        _selectedDevice.value = device
+        // Reset unread count when opening chat
+        _unreadMessages.value = _unreadMessages.value.toMutableMap().also {
+            it[device.id] = 0
+        }
+    }
+
     fun clearSelectedDevice() {
         _selectedDevice.value = null
     }
 
-    /**
-     * Send a message to the selected device
-     */
     fun sendMessage(text: String) {
         val device = _selectedDevice.value ?: return
         viewModelScope.launch {
@@ -99,11 +118,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Get messages for a specific device
-     */
-    fun getMessagesForDevice(deviceId: String): List<Message> {
-        return networkManager.getMessagesForDevice(deviceId)
+    private fun incrementUnreadBy(deviceId: String, count: Int) {
+        _unreadMessages.value = _unreadMessages.value.toMutableMap().also {
+            it[deviceId] = (it[deviceId] ?: 0) + count
+        }
     }
 
     override fun onCleared() {
