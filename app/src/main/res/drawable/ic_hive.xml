@@ -1,0 +1,47 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="110dp"
+    android:height="110dp"
+    android:viewportWidth="110"
+    android:viewportHeight="110">
+
+    <!-- Hive structure -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="
+        M55,35 L72.32,45 L72.32,65 L55,75 L37.68,65 L37.68,45 Z
+        M55,0.36 L72.32,10.36 L72.32,30.36 L55,40.36 L37.68,30.36 L37.68,10.36 Z
+        M85,17.68 L102.32,27.68 L102.32,47.68 L85,57.68 L67.68,47.68 L67.68,27.68 Z
+        M85,52.32 L102.32,62.32 L102.32,82.32 L85,92.32 L67.68,82.32 L67.68,62.32 Z
+        M55,69.64 L72.32,79.64 L72.32,99.64 L55,109.64 L37.68,99.64 L37.68,79.64 Z
+        M25,52.32 L42.32,62.32 L42.32,82.32 L25,92.32 L7.68,82.32 L7.68,62.32 Z
+        M25,17.68 L42.32,27.68 L42.32,47.68 L25,57.68 L7.68,47.68 L7.68,27.68 Z" />
+
+    <!-- Bees (simple circles with small wings) -->
+    <group>
+        <!-- Bee 1 -->
+        <path
+            android:fillColor="#FFC107"
+            android:pathData="M20,15 A3,3 0 1,0 26,15 A3,3 0 1,0 20,15 Z"/>
+        <path
+            android:fillColor="#FFEB3B"
+            android:pathData="M18,14 L22,14 M19,13 L21,15" />
+
+        <!-- Bee 2 -->
+        <path
+            android:fillColor="#FFC107"
+            android:pathData="M90,20 A3,3 0 1,0 96,20 A3,3 0 1,0 90,20 Z"/>
+        <path
+            android:fillColor="#FFEB3B"
+            android:pathData="M88,19 L92,19 M89,18 L91,20" />
+
+        <!-- Bee 3 -->
+        <path
+            android:fillColor="#FFC107"
+            android:pathData="M40,90 A3,3 0 1,0 46,90 A3,3 0 1,0 40,90 Z"/>
+        <path
+            android:fillColor="#FFEB3B"
+            android:pathData="M38,89 L42,89 M39,88 L41,90" />
+    </group>
+</vector>
