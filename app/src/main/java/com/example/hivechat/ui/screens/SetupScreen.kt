@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.hivechat.ui.screens.BeeFly
 import com.example.hivechat.ui.theme.*
 import kotlin.random.Random
 
@@ -46,18 +45,16 @@ fun SetupScreen(
             ),
         contentAlignment = Alignment.Center
     ) {
-        // Card container with brown border
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color.White)
-                .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(24.dp)) // 1px brown border
+                .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(24.dp))
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile icon
             val iconSize = 80.dp
             Box(
                 contentAlignment = Alignment.Center,
@@ -70,7 +67,6 @@ fun SetupScreen(
                     tint = HoneyYellow
                 )
 
-                // Bees orbiting the icon
                 val beeCount = 4
                 val random = remember { Random(System.currentTimeMillis()) }
                 repeat(beeCount) {
@@ -82,7 +78,6 @@ fun SetupScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Titles
             Text(
                 text = "Welcome to the Hive!",
                 fontSize = 28.sp,
@@ -98,7 +93,6 @@ fun SetupScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Name Input with single brown border
             OutlinedTextField(
                 value = name,
                 onValueChange = {
@@ -116,8 +110,8 @@ fun SetupScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp)),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFA0522D), // brown
-                    unfocusedBorderColor = Color(0xFFA0522D), // brown
+                    focusedBorderColor = Color(0xFFA0522D),
+                    unfocusedBorderColor = Color(0xFFA0522D),
                     focusedLabelColor = HoneyYellow,
                     cursorColor = HoneyYellow
                 ),
@@ -133,7 +127,6 @@ fun SetupScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Join button with border
             Button(
                 onClick = {
                     if (name.isNotBlank()) onNameSet(name.trim())
@@ -143,7 +136,7 @@ fun SetupScreen(
                     .fillMaxWidth()
                     .height(56.dp)
                     .clip(RoundedCornerShape(28.dp))
-                    .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(28.dp)), // brown border
+                    .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(28.dp)),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = HoneyYellow,
                     contentColor = BeeBlack

@@ -1,8 +1,8 @@
 package com.example.hivechat.ui.screens
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -35,6 +35,7 @@ fun DeviceListScreen(
     devices: List<Device>,
     isDiscovering: Boolean,
     unreadMap: Map<String, Int>,
+    connectionStatus: String = "Connected",
     onDeviceClick: (Device) -> Unit,
     onDiscoverClick: () -> Unit,
     onLogout: () -> Unit
@@ -46,8 +47,7 @@ fun DeviceListScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // ORIGINAL LOGO preserved
-                        androidx.compose.foundation.Image(
+                        Image(
                             painter = painterResource(id = R.drawable.ic_my_logo),
                             contentDescription = "App Logo",
                             modifier = Modifier.size(36.dp)
@@ -169,8 +169,32 @@ fun DeviceListScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
                     .clip(RoundedCornerShape(25.dp))
-                    .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(25.dp)) // brown border
             )
+
+            // Connection Status Indicator
+            if (connectionStatus.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = if (connectionStatus.contains("❌"))
+                        Color(0xFFFFEBEE)
+                    else
+                        Color(0xFFE8F5E9),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = connectionStatus,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        fontSize = 12.sp,
+                        color = if (connectionStatus.contains("❌"))
+                            Color(0xFFC62828)
+                        else
+                            Color(0xFF2E7D32),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
             val filteredDevices = devices.filter {
                 it.name.contains(searchQuery, ignoreCase = true)
@@ -193,97 +217,6 @@ fun DeviceListScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun DeviceCard(device: Device, unreadCount: Int, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, Color(0xFFA0522D), RoundedCornerShape(16.dp))
-            .clickable(
-                indication = androidx.compose.material.ripple.rememberRipple(),
-                interactionSource = remember { MutableInteractionSource() }
-            ) { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 6.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(56.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(HoneyYellow)
-                        .border(1.dp, Color(0xFFA0522D), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = "User",
-                        modifier = Modifier.size(32.dp),
-                        tint = BeeBlack
-                    )
-                }
-
-                if (unreadCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .align(Alignment.TopEnd)
-                            .background(Color.Red, CircleShape)
-                            .border(1.dp, Color(0xFFA0522D), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (unreadCount > 9) "9+" else "$unreadCount",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    device.name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = BeeBlack
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF4CAF50))
-                            .border(1.dp, Color(0xFFA0522D), CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Online", fontSize = 12.sp, color = BeeGray)
-                }
-            }
-
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = "Chat",
-                tint = HoneyGold
-            )
         }
     }
 }
@@ -317,5 +250,92 @@ fun EmptyDeviceState() {
             color = BeeGray,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+@Composable
+fun DeviceCard(device: Device, unreadCount: Int, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                indication = androidx.compose.material.ripple.rememberRipple(),
+                interactionSource = remember { MutableInteractionSource() }
+            ) { onClick() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(56.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(HoneyYellow),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = "User",
+                        modifier = Modifier.size(32.dp),
+                        tint = BeeBlack
+                    )
+                }
+
+                if (unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .align(Alignment.TopEnd)
+                            .background(Color.Red, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (unreadCount > 9) "9+" else "$unreadCount",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    device.name,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = BeeBlack
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF4CAF50))
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Online", fontSize = 12.sp, color = BeeGray)
+                }
+            }
+
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = "Chat",
+                tint = HoneyGold
+            )
+        }
     }
 }

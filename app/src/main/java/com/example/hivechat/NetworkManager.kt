@@ -21,43 +21,47 @@ class NetworkManager(private val context: Context) {
     companion object {
         private const val TAG = "NetworkManager"
         private const val DISCOVERY_PORT = 9999
-        private const val MESSAGE_PORT = 8888
-        private const val DISCOVERY_DURATION = 10000L // 10 seconds
-        private const val BROADCAST_INTERVAL = 500L // Broadcast every 0.5 seconds during discovery
+        private val MESSAGE_PORTS = listOf(443, 80, 8080, 53, 8888, 9090, 5353, 49152)
+        private const val DISCOVERY_DURATION = 30000L
+        private const val BROADCAST_INTERVAL = 1000L
+        private const val SOCKET_TIMEOUT = 5000
+        private const val STALE_DEVICE_THRESHOLD = 35000L
     }
 
     private val gson = Gson()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    // Device info
+    // Device information
     private var myDeviceId = ""
     private var myDeviceName = ""
+    private var activeMessagePort = 0
 
-    // Discovered devices
-    private val _devices = MutableStateFlow<List<Device>>(emptyList())
-    val devices: StateFlow<List<Device>> = _devices
-
-    // Discovery state
-    private val _isDiscovering = MutableStateFlow(false)
-    val isDiscovering: StateFlow<Boolean> = _isDiscovering
-
-    // Messages
-    private val _messages = MutableStateFlow<Map<String, List<Message>>>(emptyMap())
-    val messages: StateFlow<Map<String, List<Message>>> = _messages
-
-    // Active connections
-    private val activeConnections = mutableMapOf<String, Socket>()
-
-    // Server socket for incoming connections
+    // Network components
     private var serverSocket: ServerSocket? = null
+    private val activeConnections = mutableMapOf<String, Socket>()
+    private var multicastLock: WifiManager.MulticastLock? = null
 
     // Discovery jobs
     private var discoveryBroadcastJob: Job? = null
     private var discoveryListenerJob: Job? = null
     private var discoveryTimeoutJob: Job? = null
+    private var deviceCleanupJob: Job? = null
 
-    // Multicast lock for UDP broadcast
-    private var multicastLock: WifiManager.MulticastLock? = null
+    // State flows
+    private val _devices = MutableStateFlow<List<Device>>(emptyList())
+    val devices: StateFlow<List<Device>> = _devices
+
+    private val _isDiscovering = MutableStateFlow(false)
+    val isDiscovering: StateFlow<Boolean> = _isDiscovering
+
+    private val _messages = MutableStateFlow<Map<String, List<Message>>>(emptyMap())
+    val messages: StateFlow<Map<String, List<Message>>> = _messages
+
+    private val _connectionStatus = MutableStateFlow("Initializing...")
+    val connectionStatus: StateFlow<String> = _connectionStatus
+
+    private val _unreadMessages = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val unreadMessages: StateFlow<Map<String, Int>> = _unreadMessages
 
     /**
      * Initialize the network manager
@@ -66,20 +70,20 @@ class NetworkManager(private val context: Context) {
         myDeviceName = deviceName
         myDeviceId = getDeviceId()
 
-        // Acquire multicast lock
-        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        multicastLock = wifiManager.createMulticastLock("HiveChatLock").apply {
-            acquire()
-        }
+        // Acquire multicast lock for UDP broadcasts
+        acquireMulticastLock()
 
-        // Start message server (always running to receive messages)
-        startMessageServer()
+        // Start message server with port fallback
+        startMessageServerWithFallback()
+
+        // Start periodic device cleanup
+        startDeviceCleanup()
 
         Log.d(TAG, "NetworkManager initialized: $myDeviceName ($myDeviceId)")
     }
 
     /**
-     * Get a unique device ID
+     * Get or create unique device ID
      */
     private fun getDeviceId(): String {
         val prefs = context.getSharedPreferences("HiveChat", Context.MODE_PRIVATE)
@@ -92,7 +96,85 @@ class NetworkManager(private val context: Context) {
     }
 
     /**
-     * Start device discovery (manual trigger)
+     * Acquire multicast lock for UDP
+     */
+    private fun acquireMulticastLock() {
+        try {
+            val wifiManager = context.applicationContext
+                .getSystemService(Context.WIFI_SERVICE) as WifiManager
+            multicastLock = wifiManager.createMulticastLock("HiveChatLock").apply {
+                setReferenceCounted(true)
+                acquire()
+            }
+            Log.d(TAG, "Multicast lock acquired")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire multicast lock: ${e.message}")
+        }
+    }
+
+    /**
+     * Try multiple ports until one works
+     */
+    private fun startMessageServerWithFallback() {
+        scope.launch {
+            var serverStarted = false
+
+            for (port in MESSAGE_PORTS) {
+                try {
+                    serverSocket = ServerSocket(port)
+                    serverSocket?.soTimeout = 0 // No timeout
+                    activeMessagePort = port
+                    serverStarted = true
+
+                    _connectionStatus.value = "✅ Server running on port $port"
+                    Log.d(TAG, "✅ Server started on port $port")
+
+                    startAcceptingConnections()
+                    break
+
+                } catch (e: Exception) {
+                    Log.w(TAG, "Port $port failed: ${e.message}")
+                    _connectionStatus.value = "Trying port $port..."
+                }
+            }
+
+            if (!serverStarted) {
+                _connectionStatus.value = "❌ Network restricted - All ports blocked"
+                Log.e(TAG, "CRITICAL: Could not start server on any port")
+            }
+        }
+    }
+
+    /**
+     * Accept incoming TCP connections
+     */
+    private suspend fun startAcceptingConnections() {
+        withContext(Dispatchers.IO) {
+            try {
+                while (isActive && serverSocket?.isClosed == false) {
+                    try {
+                        val clientSocket = serverSocket?.accept()
+                        clientSocket?.let { socket ->
+                            launch { handleIncomingConnection(socket) }
+                        }
+                    } catch (e: SocketTimeoutException) {
+                        // Normal timeout, continue
+                    } catch (e: Exception) {
+                        if (isActive) {
+                            Log.e(TAG, "Accept error: ${e.message}")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                if (isActive) {
+                    Log.e(TAG, "Server socket error: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Start device discovery
      */
     fun startDiscovery() {
         if (_isDiscovering.value) {
@@ -100,13 +182,17 @@ class NetworkManager(private val context: Context) {
             return
         }
 
+        if (activeMessagePort == 0) {
+            _connectionStatus.value = "❌ Cannot discover: Server not running"
+            Log.e(TAG, "Cannot start discovery: Server not running")
+            return
+        }
+
         _isDiscovering.value = true
-        Log.d(TAG, "Starting discovery for $DISCOVERY_DURATION ms")
-
-        // Clear old devices
+        _connectionStatus.value = "🔍 Discovering devices..."
         _devices.value = emptyList()
+        Log.d(TAG, "Discovery started")
 
-        // Start broadcasting and listening
         startDiscoveryBroadcast()
         startDiscoveryListener()
 
@@ -123,22 +209,24 @@ class NetworkManager(private val context: Context) {
     fun stopDiscovery() {
         if (!_isDiscovering.value) return
 
-        Log.d(TAG, "Stopping discovery")
-
-        // Cancel discovery jobs
         discoveryBroadcastJob?.cancel()
         discoveryListenerJob?.cancel()
         discoveryTimeoutJob?.cancel()
 
-        discoveryBroadcastJob = null
-        discoveryListenerJob = null
-        discoveryTimeoutJob = null
-
         _isDiscovering.value = false
+
+        val deviceCount = _devices.value.size
+        _connectionStatus.value = if (deviceCount > 0) {
+            "✅ Found $deviceCount device(s)"
+        } else {
+            "No devices found"
+        }
+
+        Log.d(TAG, "Discovery stopped - Found $deviceCount devices")
     }
 
     /**
-     * Broadcast presence to network (UDP) - runs only during discovery
+     * Broadcast presence via UDP
      */
     private fun startDiscoveryBroadcast() {
         discoveryBroadcastJob = scope.launch {
@@ -152,7 +240,7 @@ class NetworkManager(private val context: Context) {
                         val packet = DiscoveryPacket(
                             deviceId = myDeviceId,
                             deviceName = myDeviceName,
-                            port = MESSAGE_PORT
+                            port = activeMessagePort
                         )
                         val json = gson.toJson(packet)
                         val data = json.toByteArray()
@@ -165,7 +253,7 @@ class NetworkManager(private val context: Context) {
                         )
 
                         socket.send(datagramPacket)
-                        Log.d(TAG, "Broadcast sent: $myDeviceName")
+                        Log.d(TAG, "Broadcast sent: $myDeviceName on port $activeMessagePort")
 
                     } catch (e: Exception) {
                         if (isActive) {
@@ -180,13 +268,12 @@ class NetworkManager(private val context: Context) {
                 Log.e(TAG, "Broadcast socket error: ${e.message}")
             } finally {
                 socket?.close()
-                Log.d(TAG, "Broadcast socket closed")
             }
         }
     }
 
     /**
-     * Listen for device broadcasts (UDP) - runs only during discovery
+     * Listen for device broadcasts via UDP
      */
     private fun startDiscoveryListener() {
         discoveryListenerJob = scope.launch {
@@ -194,8 +281,8 @@ class NetworkManager(private val context: Context) {
             try {
                 socket = DatagramSocket(DISCOVERY_PORT)
                 socket.broadcast = true
-                socket.soTimeout = 1000 // 1 second timeout for checking cancellation
-                val buffer = ByteArray(1024)
+                socket.soTimeout = 2000
+                val buffer = ByteArray(2048)
 
                 while (isActive && _isDiscovering.value) {
                     try {
@@ -216,14 +303,14 @@ class NetworkManager(private val context: Context) {
                             )
 
                             updateDeviceList(device)
-                            Log.d(TAG, "Device discovered: ${device.name} at ${device.ipAddress}")
+                            Log.d(TAG, "Device found: ${device.name} at ${device.ipAddress}:${device.port}")
                         }
 
                     } catch (e: SocketTimeoutException) {
-                        // Normal timeout, continue loop
+                        // Normal timeout
                     } catch (e: Exception) {
                         if (isActive && _isDiscovering.value) {
-                            Log.e(TAG, "Discovery listener error: ${e.message}")
+                            Log.e(TAG, "Listener error: ${e.message}")
                         }
                     }
                 }
@@ -232,13 +319,12 @@ class NetworkManager(private val context: Context) {
                 Log.e(TAG, "Discovery socket error: ${e.message}")
             } finally {
                 socket?.close()
-                Log.d(TAG, "Discovery listener closed")
             }
         }
     }
 
     /**
-     * Update the list of discovered devices
+     * Update discovered devices list
      */
     private fun updateDeviceList(newDevice: Device) {
         val currentDevices = _devices.value.toMutableList()
@@ -254,28 +340,22 @@ class NetworkManager(private val context: Context) {
     }
 
     /**
-     * Start TCP server to receive messages (always running)
+     * Periodically remove stale devices
      */
-    private fun startMessageServer() {
-        scope.launch {
-            try {
-                serverSocket = ServerSocket(MESSAGE_PORT)
-                Log.d(TAG, "Message server started on port $MESSAGE_PORT")
+    private fun startDeviceCleanup() {
+        deviceCleanupJob = scope.launch {
+            while (isActive) {
+                delay(5000) // Check every 5 seconds
 
-                while (isActive) {
-                    try {
-                        val clientSocket = serverSocket?.accept()
-                        clientSocket?.let { socket ->
-                            launch { handleIncomingConnection(socket) }
-                        }
-                    } catch (e: Exception) {
-                        if (isActive) {
-                            Log.e(TAG, "Server accept error: ${e.message}")
-                        }
-                    }
+                val now = System.currentTimeMillis()
+                val activeDevices = _devices.value.filter {
+                    now - it.lastSeen < STALE_DEVICE_THRESHOLD
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Server socket error: ${e.message}")
+
+                if (activeDevices.size != _devices.value.size) {
+                    _devices.value = activeDevices
+                    Log.d(TAG, "Removed stale devices. Active: ${activeDevices.size}")
+                }
             }
         }
     }
@@ -285,50 +365,64 @@ class NetworkManager(private val context: Context) {
      */
     private suspend fun handleIncomingConnection(socket: Socket) {
         withContext(Dispatchers.IO) {
+            var reader: BufferedReader? = null
             try {
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                val clientAddress = socket.inetAddress.hostAddress ?: "unknown"
 
-                while (isActive) {
+                Log.d(TAG, "Client connected: $clientAddress")
+
+                while (isActive && !socket.isClosed) {
                     val line = reader.readLine() ?: break
-                    val messagePacket = gson.fromJson(line, MessagePacket::class.java)
 
-                    val message = Message(
-                        id = messagePacket.messageId,
-                        text = messagePacket.text,
-                        senderName = messagePacket.senderName,
-                        senderId = messagePacket.senderId,
-                        timestamp = messagePacket.timestamp,
-                        isMine = false
-                    )
+                    try {
+                        val messagePacket = gson.fromJson(line, MessagePacket::class.java)
 
-                    addMessage(messagePacket.senderId, message)
-                    Log.d(TAG, "Message received from ${message.senderName}: ${message.text}")
+                        val message = Message(
+                            id = messagePacket.messageId,
+                            text = messagePacket.text,
+                            senderName = messagePacket.senderName,
+                            senderId = messagePacket.senderId,
+                            timestamp = messagePacket.timestamp,
+                            isMine = false
+                        )
+
+                        addMessage(messagePacket.senderId, message)
+                        incrementUnreadCount(messagePacket.senderId)
+                        Log.d(TAG, "Message received from ${message.senderName}: ${message.text}")
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to parse message: ${e.message}")
+                    }
                 }
 
-                socket.close()
             } catch (e: Exception) {
-                Log.e(TAG, "Incoming connection error: ${e.message}")
+                Log.e(TAG, "Connection error: ${e.message}")
+            } finally {
+                reader?.close()
+                socket.close()
             }
         }
     }
 
     /**
-     * Send a message to a device
+     * Send message to a device
      */
     fun sendMessage(deviceId: String, text: String) {
         scope.launch {
             try {
-                val device = _devices.value.find { it.id == deviceId } ?: return@launch
+                val device = _devices.value.find { it.id == deviceId }
+                if (device == null) {
+                    Log.e(TAG, "Device not found: $deviceId")
+                    return@launch
+                }
 
                 // Get or create connection
                 val socket = activeConnections.getOrPut(deviceId) {
-                    Socket().apply {
-                        connect(InetSocketAddress(device.ipAddress, device.port), 5000)
-                        Log.d(TAG, "Connected to ${device.name}")
-                    }
+                    connectToDevice(device)
                 }
 
-                // Create message packet
+                // Create message
                 val message = Message(
                     text = text,
                     senderName = myDeviceName,
@@ -344,7 +438,7 @@ class NetworkManager(private val context: Context) {
                     timestamp = message.timestamp
                 )
 
-                // Send message
+                // Send via TCP
                 val writer = PrintWriter(socket.getOutputStream(), true)
                 writer.println(gson.toJson(packet))
 
@@ -353,15 +447,34 @@ class NetworkManager(private val context: Context) {
                 Log.d(TAG, "Message sent to ${device.name}: $text")
 
             } catch (e: Exception) {
-                Log.e(TAG, "Send message error: ${e.message}")
-                // Remove failed connection
+                Log.e(TAG, "Send error: ${e.message}")
                 activeConnections.remove(deviceId)?.close()
             }
         }
     }
 
     /**
-     * Add a message to the conversation
+     * Connect to a device with port fallback
+     */
+    private fun connectToDevice(device: Device): Socket {
+        val portsToTry = listOf(device.port) + MESSAGE_PORTS.filter { it != device.port }
+
+        for (port in portsToTry) {
+            try {
+                val socket = Socket()
+                socket.connect(InetSocketAddress(device.ipAddress, port), SOCKET_TIMEOUT)
+                Log.d(TAG, "✅ Connected to ${device.name} on port $port")
+                return socket
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed port $port for ${device.name}: ${e.message}")
+            }
+        }
+
+        throw Exception("Could not connect to ${device.name} on any port")
+    }
+
+    /**
+     * Add message to conversation
      */
     private fun addMessage(deviceId: String, message: Message) {
         val currentMessages = _messages.value.toMutableMap()
@@ -372,22 +485,45 @@ class NetworkManager(private val context: Context) {
     }
 
     /**
-     * Get messages for a specific device
+     * Increment unread message count
      */
-    fun getMessagesForDevice(deviceId: String): List<Message> {
-        return _messages.value[deviceId] ?: emptyList()
+    private fun incrementUnreadCount(deviceId: String) {
+        val currentUnread = _unreadMessages.value.toMutableMap()
+        currentUnread[deviceId] = (currentUnread[deviceId] ?: 0) + 1
+        _unreadMessages.value = currentUnread
     }
 
     /**
-     * Clean up resources
+     * Clear unread messages for a device
+     */
+    fun clearUnreadMessages(deviceId: String) {
+        val currentUnread = _unreadMessages.value.toMutableMap()
+        currentUnread.remove(deviceId)
+        _unreadMessages.value = currentUnread
+    }
+
+    /**
+     * Get device ID
+     */
+    fun getMyDeviceId(): String = myDeviceId
+
+    /**
+     * Cleanup resources
      */
     fun cleanup() {
         stopDiscovery()
+        deviceCleanupJob?.cancel()
         scope.cancel()
+
         serverSocket?.close()
+        serverSocket = null
+
         activeConnections.values.forEach { it.close() }
         activeConnections.clear()
+
         multicastLock?.release()
+        multicastLock = null
+
         Log.d(TAG, "NetworkManager cleaned up")
     }
 }

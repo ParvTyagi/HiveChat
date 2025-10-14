@@ -83,6 +83,7 @@ dependencies {
 
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.androidx.compose.foundation)
 
     // Debug tools
     debugImplementation("androidx.compose.ui:ui-tooling")
