@@ -89,4 +89,9 @@ dependencies {
     // Debug tools
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    // Compose UI animations
+    implementation("androidx.compose.animation:animation:1.6.0")
+// For infinite transitions and other animation APIs
+    implementation("androidx.compose.animation:animation-core:1.6.0")
+
 }

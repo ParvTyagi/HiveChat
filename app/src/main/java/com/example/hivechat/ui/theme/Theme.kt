@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 // Hive Color Palette - Honey & Bee Inspired
+val BrownBorder = Color(0xFF8D6E63) // Light brown for borders
+
 val HoneyYellow = Color(0xFFFFC107)
 val HoneyGold = Color(0xFFFFB300)
 val AmberOrange = Color(0xFFFF8F00)

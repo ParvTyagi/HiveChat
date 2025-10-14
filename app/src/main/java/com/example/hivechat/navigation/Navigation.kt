@@ -5,7 +5,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.hivechat.model.Device // --- CORRECTED IMPORT PATH ---
+import com.example.hivechat.model.Device
 import com.example.hivechat.ui.screens.*
 import com.example.hivechat.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
@@ -26,19 +26,18 @@ fun HiveChatNavigation(
     val userName by viewModel.userName.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val isDiscovering by viewModel.isDiscovering.collectAsState()
-    val connectionStatus by viewModel.connectionStatus.collectAsState() // Already here
+    val connectionStatus by viewModel.connectionStatus.collectAsState()
     val selectedDevice by viewModel.selectedDevice.collectAsState()
     val allMessages by viewModel.allMessages.collectAsState()
     val unreadMap by viewModel.unreadMessages.collectAsState()
 
     val scope = rememberCoroutineScope()
 
-    // Auto-start discovery for 1 minute on login
     LaunchedEffect(userName) {
         if (userName.isNotEmpty()) {
             viewModel.startDiscovery()
             scope.launch {
-                delay(60_000) // 1 minute
+                delay(60_000)
                 viewModel.stopDiscovery()
             }
         }
@@ -116,4 +115,3 @@ fun HiveChatNavigation(
         }
     }
 }
-

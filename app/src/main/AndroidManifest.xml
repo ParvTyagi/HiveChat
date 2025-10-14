@@ -28,7 +28,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.HiveChat"
-            android:windowSoftInputMode="adjustPan"
+            android:windowSoftInputMode="adjustResize|stateHidden"
             tools:ignore="ExtraText">
             android:screenOrientation="portrait">
             <intent-filter>
