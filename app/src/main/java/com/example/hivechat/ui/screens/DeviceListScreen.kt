@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -33,9 +34,9 @@ import com.example.hivechat.ui.theme.*
 fun DeviceListScreen(
     myName: String,
     devices: List<Device>,
-    isDiscovering: Boolean,
     unreadMap: Map<String, Int>,
-    connectionStatus: String = "Connected",
+    isDiscovering: Boolean,
+    connectionStatus: String = "",
     onDeviceClick: (Device) -> Unit,
     onDiscoverClick: () -> Unit,
     onLogout: () -> Unit
@@ -69,24 +70,20 @@ fun DeviceListScreen(
                     }
                 },
                 actions = {
-                    val infiniteTransition = rememberInfiniteTransition(label = "wobble")
+                    val infiniteTransition = rememberInfiniteTransition()
                     val wobbleRotation by infiniteTransition.animateFloat(
                         initialValue = -5f,
                         targetValue = 5f,
                         animationSpec = infiniteRepeatable(
                             animation = tween(2000, easing = FastOutSlowInEasing),
                             repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "rotation"
+                        )
                     )
-
                     IconButton(onClick = onLogout) {
                         Icon(
                             imageVector = Icons.Default.Hive,
-                            contentDescription = "Logout",
-                            modifier = Modifier
-                                .size(32.dp)
-                                .rotate(wobbleRotation),
+                            contentDescription = "Logout / Change Username",
+                            modifier = Modifier.size(32.dp).rotate(wobbleRotation),
                             tint = BeeBlack
                         )
                     }
@@ -102,26 +99,25 @@ fun DeviceListScreen(
                 onClick = onDiscoverClick,
                 containerColor = if (isDiscovering) AmberOrange else HoneyYellow,
                 contentColor = BeeBlack,
-                elevation = FloatingActionButtonDefaults.elevation(6.dp, pressedElevation = 12.dp)
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 6.dp,
+                    pressedElevation = 12.dp
+                )
             ) {
                 if (isDiscovering) {
-                    val infiniteTransition = rememberInfiniteTransition(label = "scan")
+                    val infiniteTransition = rememberInfiniteTransition()
                     val rotation by infiniteTransition.animateFloat(
                         initialValue = 0f,
                         targetValue = 360f,
                         animationSpec = infiniteRepeatable(
                             animation = tween(1000, easing = LinearEasing),
                             repeatMode = RepeatMode.Restart
-                        ),
-                        label = "scan_rotation"
+                        )
                     )
-
                     Icon(
                         imageVector = Icons.Default.Sync,
                         contentDescription = "Discovering...",
-                        modifier = Modifier
-                            .size(28.dp)
-                            .rotate(rotation)
+                        modifier = Modifier.size(28.dp).rotate(rotation)
                     )
                 } else {
                     Icon(
@@ -139,22 +135,12 @@ fun DeviceListScreen(
                 .padding(padding)
                 .background(HiveWhite)
         ) {
+            // Search bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = {
-                    Text(
-                        "Search users...",
-                        color = BeeGray.copy(alpha = 0.7f)
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = HoneyGold
-                    )
-                },
+                placeholder = { Text("Search users...", color = BeeGray.copy(alpha = 0.7f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = HoneyGold) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = HiveWhite,
@@ -171,39 +157,31 @@ fun DeviceListScreen(
                     .clip(RoundedCornerShape(25.dp))
             )
 
-            // Connection Status Indicator
+            // Connection Status
             if (connectionStatus.isNotEmpty()) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
-                    color = if (connectionStatus.contains("❌"))
-                        Color(0xFFFFEBEE)
-                    else
-                        Color(0xFFE8F5E9),
+                    color = if (connectionStatus.contains("❌")) Color(0xFFFFEBEE) else Color(0xFFE8F5E9),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         text = connectionStatus,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         fontSize = 12.sp,
-                        color = if (connectionStatus.contains("❌"))
-                            Color(0xFFC62828)
-                        else
-                            Color(0xFF2E7D32),
+                        color = if (connectionStatus.contains("❌")) Color(0xFFC62828) else Color(0xFF2E7D32),
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            val filteredDevices = devices.filter {
-                it.name.contains(searchQuery, ignoreCase = true)
-            }
+            val filteredDevices = devices.filter { it.name.contains(searchQuery, ignoreCase = true) }
 
-            if (filteredDevices.isEmpty() && !isDiscovering) {
-                EmptyDeviceState()
-            } else {
-                LazyColumn(
+            when {
+                filteredDevices.isEmpty() && !isDiscovering -> EmptyDeviceState()
+                filteredDevices.isEmpty() && isDiscovering -> SearchingDeviceState()
+                else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -224,118 +202,79 @@ fun DeviceListScreen(
 @Composable
 fun EmptyDeviceState() {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.DevicesOther,
-            contentDescription = "No devices",
-            modifier = Modifier.size(80.dp),
-            tint = BeeGray.copy(alpha = 0.5f)
-        )
+        Icon(Icons.Default.Radar, contentDescription = "No devices", modifier = Modifier.size(80.dp), tint = HoneyGold.copy(alpha = 0.5f))
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "No Devices Found",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = BeeBlack
-        )
+        Text("No Bees Found", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BeeGray)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Tap the radar button below to discover nearby devices",
-            fontSize = 14.sp,
-            color = BeeGray,
-            textAlign = TextAlign.Center
+        Text("Tap the radar button below to discover devices on your network", fontSize = 14.sp, color = BeeGray.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(24.dp))
+        Icon(Icons.Default.TouchApp, contentDescription = "Tap", modifier = Modifier.size(40.dp), tint = HoneyYellow.copy(alpha = 0.7f))
+    }
+}
+
+@Composable
+fun SearchingDeviceState() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        val infiniteTransition = rememberInfiniteTransition()
+        val scale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.2f,
+            animationSpec = infiniteRepeatable(animation = tween(800, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse)
         )
+        Text("🐝", fontSize = 64.sp, modifier = Modifier.scale(scale))
+        Spacer(modifier = Modifier.height(16.dp))
+        CircularProgressIndicator(modifier = Modifier.size(40.dp), color = HoneyYellow, strokeWidth = 3.dp)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Scanning for bees...", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = BeeGray)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Make sure other devices are on the same Wi-Fi network", fontSize = 14.sp, color = BeeGray.copy(alpha = 0.7f), textAlign = TextAlign.Center)
     }
 }
 
 @Composable
 fun DeviceCard(device: Device, unreadCount: Int, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(
-                indication = androidx.compose.material.ripple.rememberRipple(),
-                interactionSource = remember { MutableInteractionSource() }
-            ) { onClick() },
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(
+            indication = androidx.compose.material.ripple.rememberRipple(),
+            interactionSource = remember { MutableInteractionSource() }
+        ) { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 6.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(56.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(HoneyYellow),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = "User",
-                        modifier = Modifier.size(32.dp),
-                        tint = BeeBlack
-                    )
-                }
-
-                if (unreadCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .align(Alignment.TopEnd)
-                            .background(Color.Red, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (unreadCount > 9) "9+" else "$unreadCount",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(56.dp).clip(CircleShape).background(HoneyYellow), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Person, contentDescription = "User", modifier = Modifier.size(32.dp), tint = BeeBlack)
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    device.name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = BeeBlack
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(device.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = BeeBlack)
+                    if (unreadCount > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(Color.Red), contentAlignment = Alignment.Center) {
+                            Text(unreadCount.toString(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF4CAF50))
-                    )
+                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF4CAF50)))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Online", fontSize = 12.sp, color = BeeGray)
                 }
             }
 
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = "Chat",
-                tint = HoneyGold
-            )
+            Icon(Icons.Default.ChevronRight, contentDescription = "Chat", tint = HoneyGold)
         }
     }
 }

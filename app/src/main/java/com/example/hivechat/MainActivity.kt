@@ -1,10 +1,13 @@
 package com.example.hivechat
 
 import android.Manifest
+import android.app.AlertDialog
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.widget.Toast
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,11 +26,7 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         val deniedPermissions = permissions.filterValues { !it }.keys
         if (deniedPermissions.isNotEmpty()) {
-            Toast.makeText(
-                this,
-                "Some permissions were denied. App may not work properly.",
-                Toast.LENGTH_LONG
-            ).show()
+            showPermissionRationaleDialog()
         }
     }
 
@@ -74,5 +73,23 @@ class MainActivity : ComponentActivity() {
         if (permissionsToRequest.isNotEmpty()) {
             requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
+    }
+
+    private fun showPermissionRationaleDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Permissions Required")
+            .setMessage("This app needs a few permissions to function properly. Please grant them in the app settings.")
+            .setPositiveButton("Go to Settings") { _, _ ->
+                // Intent to open app settings
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                val uri = Uri.fromParts("package", packageName, null)
+                intent.data = uri
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .create()
+            .show()
     }
 }

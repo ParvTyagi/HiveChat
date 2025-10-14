@@ -5,9 +5,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.hivechat.model.Device // --- CORRECTED IMPORT PATH ---
 import com.example.hivechat.ui.screens.*
 import com.example.hivechat.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
@@ -22,13 +24,23 @@ fun HiveChatNavigation(
 ) {
     val navController = rememberNavController()
     val userName by viewModel.userName.collectAsState()
+    val devices by viewModel.devices.collectAsState()
+    val isDiscovering by viewModel.isDiscovering.collectAsState()
+    val connectionStatus by viewModel.connectionStatus.collectAsState() // Already here
+    val selectedDevice by viewModel.selectedDevice.collectAsState()
+    val allMessages by viewModel.allMessages.collectAsState()
+    val unreadMap by viewModel.unreadMessages.collectAsState()
 
-    // Check for saved user on startup
-    LaunchedEffect(Unit) {
-        delay(100) // Small delay for initialization
-        val savedName = viewModel.getSavedUserName()
-        if (savedName != null) {
-            viewModel.setUserName(savedName)
+    val scope = rememberCoroutineScope()
+
+    // Auto-start discovery for 1 minute on login
+    LaunchedEffect(userName) {
+        if (userName.isNotEmpty()) {
+            viewModel.startDiscovery()
+            scope.launch {
+                delay(60_000) // 1 minute
+                viewModel.stopDiscovery()
+            }
         }
     }
 
@@ -36,7 +48,6 @@ fun HiveChatNavigation(
         navController = navController,
         startDestination = Screen.Splash.route
     ) {
-        // ✅ Fixed SplashScreen Call
         composable(Screen.Splash.route) {
             SplashScreen(
                 onNavigateToSetup = {
@@ -53,7 +64,6 @@ fun HiveChatNavigation(
             )
         }
 
-        // ✅ Setup Screen
         composable(Screen.Setup.route) {
             SetupScreen(
                 onNameSet = { name ->
@@ -65,29 +75,20 @@ fun HiveChatNavigation(
             )
         }
 
-        // ✅ Device List Screen
         composable(Screen.DeviceList.route) {
-            val devices by viewModel.devices.collectAsState()
-            val isDiscovering by viewModel.isDiscovering.collectAsState()
-            val connectionStatus by viewModel.connectionStatus.collectAsState()
-            val unreadMessages by viewModel.unreadMessages.collectAsState()
-
             DeviceListScreen(
                 myName = userName,
                 devices = devices,
                 isDiscovering = isDiscovering,
                 connectionStatus = connectionStatus,
-                unreadMap = unreadMessages,
+                unreadMap = unreadMap,
                 onDeviceClick = { device ->
                     viewModel.selectDevice(device)
                     navController.navigate(Screen.Chat.route)
                 },
                 onDiscoverClick = {
-                    if (isDiscovering) {
-                        viewModel.stopDiscovery()
-                    } else {
-                        viewModel.startDiscovery()
-                    }
+                    if (isDiscovering) viewModel.stopDiscovery()
+                    else viewModel.startDiscovery()
                 },
                 onLogout = {
                     viewModel.clearUserName()
@@ -99,21 +100,13 @@ fun HiveChatNavigation(
             )
         }
 
-        // ✅ Chat Screen
         composable(Screen.Chat.route) {
-            val selectedDevice by viewModel.selectedDevice.collectAsState()
-            val allMessages by viewModel.allMessages.collectAsState()
-
             selectedDevice?.let { device ->
                 val messages = allMessages[device.id] ?: emptyList()
-
                 ChatScreen(
                     device = device,
                     messages = messages,
-//                    myName = userName,
-                    onSendMessage = { text ->
-                        viewModel.sendMessage(text)
-                    },
+                    onSendMessage = { text -> viewModel.sendMessage(text) },
                     onBackClick = {
                         viewModel.clearSelectedDevice()
                         navController.popBackStack()
@@ -123,3 +116,4 @@ fun HiveChatNavigation(
         }
     }
 }
+
