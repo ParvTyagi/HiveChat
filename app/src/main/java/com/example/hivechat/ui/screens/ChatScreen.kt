@@ -16,7 +16,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,7 @@ import java.util.*
 fun ChatScreen(
     device: Device,
     messages: List<Message>,
+    myName: String,
     onSendMessage: (String) -> Unit,
     onBackClick: () -> Unit
 ) {
@@ -67,15 +69,25 @@ fun ChatScreen(
                             tint = BeeBlack
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(device.name, fontWeight = FontWeight.Bold, color = BeeBlack)
+                        Text(
+                            device.name,
+                            fontWeight = FontWeight.Bold,
+                            color = BeeBlack
+                        )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = BeeBlack)
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = BeeBlack
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = HoneyYellow)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = HoneyYellow
+                )
             )
         },
         containerColor = HiveWhite
@@ -114,10 +126,14 @@ fun ChatScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(24.dp))
                         .border(1.dp, BeeGray, RoundedCornerShape(24.dp)),
-                    placeholder = { Text("Type something silly… 🐝") },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-//                        textColor = BeeBlack,
-//                        placeholderColor = BeeGray,
+                    placeholder = {
+                        Text("Type something silly… 🐝")
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = BeeBlack,
+                        unfocusedTextColor = BeeBlack,
+                        focusedPlaceholderColor = BeeGray,
+                        unfocusedPlaceholderColor = BeeGray,
                         cursorColor = BeeBlack,
                         focusedBorderColor = HoneyYellow,
                         unfocusedBorderColor = BeeGray
@@ -150,8 +166,17 @@ fun ChatScreen(
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(
-                            if (messageText.isNotBlank()) Brush.linearGradient(listOf(HoneyYellow, HoneyGold))
-                            else Brush.linearGradient(listOf(BeeGray.copy(alpha = 0.15f), BeeGray.copy(alpha = 0.1f)))
+                            if (messageText.isNotBlank())
+                                Brush.linearGradient(
+                                    listOf(HoneyYellow, HoneyGold)
+                                )
+                            else
+                                Brush.linearGradient(
+                                    listOf(
+                                        BeeGray.copy(alpha = 0.15f),
+                                        BeeGray.copy(alpha = 0.1f)
+                                    )
+                                )
                         )
                 ) {
                     Icon(
@@ -207,7 +232,8 @@ fun MessageBubble(message: Message) {
         Text(
             text = dateFormat.format(Date(message.timestamp)),
             fontSize = 11.sp,
-            color = BeeGray.copy(alpha = 0.5f)
+            color = BeeGray.copy(alpha = 0.5f),
+            modifier = Modifier.padding(horizontal = 4.dp)
         )
     }
 }

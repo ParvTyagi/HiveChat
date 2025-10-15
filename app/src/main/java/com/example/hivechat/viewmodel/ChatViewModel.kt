@@ -6,20 +6,22 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.hivechat.model.Device
 import com.example.hivechat.model.Message
-import com.example.hivechat.network.NetworkManager
+import com.example.hivechat.network.HybridNetworkManager
+import com.example.hivechat.network.NetworkMode
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context: Context = application.applicationContext
-    private val networkManager = NetworkManager(context)
+    private val networkManager = HybridNetworkManager(context)
 
-    // User data
     private val _userName = MutableStateFlow("")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
-    // Devices
+    private val _networkMode = MutableStateFlow(NetworkMode.NORMAL_WIFI)
+    val networkMode: StateFlow<NetworkMode> = _networkMode.asStateFlow()
+
     val devices: StateFlow<List<Device>> = networkManager.devices
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -29,29 +31,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val connectionStatus: StateFlow<String> = networkManager.connectionStatus
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    // Messages
     val allMessages: StateFlow<Map<String, List<Message>>> = networkManager.messages
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val unreadMessages: StateFlow<Map<String, Int>> = networkManager.unreadMessages
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    // Selected device for chat
     private val _selectedDevice = MutableStateFlow<Device?>(null)
     val selectedDevice: StateFlow<Device?> = _selectedDevice.asStateFlow()
 
-    /**
-     * Set user name and initialize network
-     */
+    private val _showWiFiDirectDialog = MutableStateFlow(false)
+    val showWiFiDirectDialog: StateFlow<Boolean> = _showWiFiDirectDialog.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            connectionStatus.collect { status ->
+                if (networkManager.isNetworkRestricted() &&
+                    _networkMode.value == NetworkMode.NORMAL_WIFI) {
+                    _showWiFiDirectDialog.value = true
+                }
+            }
+        }
+    }
+
     fun setUserName(name: String) {
         _userName.value = name
         saveUserName(name)
         networkManager.initialize(name)
     }
 
-    /**
-     * Save user name to preferences
-     */
     private fun saveUserName(name: String) {
         context.getSharedPreferences("HiveChat", Context.MODE_PRIVATE)
             .edit()
@@ -59,17 +67,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .apply()
     }
 
-    /**
-     * Get saved user name from preferences
-     */
     fun getSavedUserName(): String? {
         return context.getSharedPreferences("HiveChat", Context.MODE_PRIVATE)
             .getString("user_name", null)
     }
 
-    /**
-     * Clear user name from preferences
-     */
     fun clearUserName() {
         _userName.value = ""
         context.getSharedPreferences("HiveChat", Context.MODE_PRIVATE)
@@ -78,47 +80,44 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .apply()
     }
 
-    /**
-     * Start device discovery
-     */
     fun startDiscovery() {
         networkManager.startDiscovery()
     }
 
-    /**
-     * Stop device discovery
-     */
     fun stopDiscovery() {
         networkManager.stopDiscovery()
     }
 
-    /**
-     * Select a device for chat
-     */
+    fun switchToWiFiDirect() {
+        networkManager.switchToWiFiDirect(_userName.value)
+        _networkMode.value = NetworkMode.WIFI_DIRECT
+        _showWiFiDirectDialog.value = false
+    }
+
+    fun switchToNormalWiFi() {
+        networkManager.switchToNormalWiFi()
+        _networkMode.value = NetworkMode.NORMAL_WIFI
+        _showWiFiDirectDialog.value = false
+    }
+
+    fun dismissWiFiDirectDialog() {
+        _showWiFiDirectDialog.value = false
+    }
+
     fun selectDevice(device: Device) {
         _selectedDevice.value = device
-        // Clear unread messages when entering chat
         networkManager.clearUnreadMessages(device.id)
     }
 
-    /**
-     * Clear selected device
-     */
     fun clearSelectedDevice() {
         _selectedDevice.value = null
     }
 
-    /**
-     * Send message to selected device
-     */
     fun sendMessage(text: String) {
         val device = _selectedDevice.value ?: return
         networkManager.sendMessage(device.id, text)
     }
 
-    /**
-     * Cleanup on ViewModel clear
-     */
     override fun onCleared() {
         super.onCleared()
         networkManager.cleanup()

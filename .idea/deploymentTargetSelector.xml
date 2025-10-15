@@ -20,7 +20,7 @@
             </Target>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=ZA222YJWXN" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\legen\.android\avd\Medium_Phone.avd" />
               </handle>
             </Target>
           </targets>

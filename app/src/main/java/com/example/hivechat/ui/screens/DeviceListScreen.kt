@@ -37,11 +37,15 @@ fun DeviceListScreen(
     unreadMap: Map<String, Int>,
     isDiscovering: Boolean,
     connectionStatus: String = "",
+    showWiFiDirectDialog: Boolean = false,
     onDeviceClick: (Device) -> Unit,
     onDiscoverClick: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onEnableWiFiDirect: () -> Unit = {},
+    onDismissWiFiDirectDialog: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var showHotspotDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -70,20 +74,23 @@ fun DeviceListScreen(
                     }
                 },
                 actions = {
-                    val infiniteTransition = rememberInfiniteTransition()
+                    val infiniteTransition = rememberInfiniteTransition(label = "wobble")
                     val wobbleRotation by infiniteTransition.animateFloat(
                         initialValue = -5f,
                         targetValue = 5f,
                         animationSpec = infiniteRepeatable(
                             animation = tween(2000, easing = FastOutSlowInEasing),
                             repeatMode = RepeatMode.Reverse
-                        )
+                        ),
+                        label = "rotation"
                     )
                     IconButton(onClick = onLogout) {
                         Icon(
                             imageVector = Icons.Default.Hive,
                             contentDescription = "Logout / Change Username",
-                            modifier = Modifier.size(32.dp).rotate(wobbleRotation),
+                            modifier = Modifier
+                                .size(32.dp)
+                                .rotate(wobbleRotation),
                             tint = BeeBlack
                         )
                     }
@@ -105,19 +112,22 @@ fun DeviceListScreen(
                 )
             ) {
                 if (isDiscovering) {
-                    val infiniteTransition = rememberInfiniteTransition()
+                    val infiniteTransition = rememberInfiniteTransition(label = "scan")
                     val rotation by infiniteTransition.animateFloat(
                         initialValue = 0f,
                         targetValue = 360f,
                         animationSpec = infiniteRepeatable(
                             animation = tween(1000, easing = LinearEasing),
                             repeatMode = RepeatMode.Restart
-                        )
+                        ),
+                        label = "rotation"
                     )
                     Icon(
                         imageVector = Icons.Default.Sync,
                         contentDescription = "Discovering...",
-                        modifier = Modifier.size(28.dp).rotate(rotation)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .rotate(rotation)
                     )
                 } else {
                     Icon(
@@ -139,8 +149,19 @@ fun DeviceListScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search users...", color = BeeGray.copy(alpha = 0.7f)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = HoneyGold) },
+                placeholder = {
+                    Text(
+                        "Search users...",
+                        color = BeeGray.copy(alpha = 0.7f)
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = HoneyGold
+                    )
+                },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = HiveWhite,
@@ -163,20 +184,28 @@ fun DeviceListScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
-                    color = if (connectionStatus.contains("❌")) Color(0xFFFFEBEE) else Color(0xFFE8F5E9),
+                    color = if (connectionStatus.contains("❌"))
+                        Color(0xFFFFEBEE)
+                    else
+                        Color(0xFFE8F5E9),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         text = connectionStatus,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         fontSize = 12.sp,
-                        color = if (connectionStatus.contains("❌")) Color(0xFFC62828) else Color(0xFF2E7D32),
+                        color = if (connectionStatus.contains("❌"))
+                            Color(0xFFC62828)
+                        else
+                            Color(0xFF2E7D32),
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            val filteredDevices = devices.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            val filteredDevices = devices.filter {
+                it.name.contains(searchQuery, ignoreCase = true)
+            }
 
             when {
                 filteredDevices.isEmpty() && !isDiscovering -> EmptyDeviceState()
@@ -202,79 +231,172 @@ fun DeviceListScreen(
 @Composable
 fun EmptyDeviceState() {
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Default.Radar, contentDescription = "No devices", modifier = Modifier.size(80.dp), tint = HoneyGold.copy(alpha = 0.5f))
+        Icon(
+            Icons.Default.Radar,
+            contentDescription = "No devices",
+            modifier = Modifier.size(80.dp),
+            tint = HoneyGold.copy(alpha = 0.5f)
+        )
         Spacer(modifier = Modifier.height(16.dp))
-        Text("No Bees Found", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BeeGray)
+        Text(
+            "No Bees Found",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = BeeGray
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Tap the radar button below to discover devices on your network", fontSize = 14.sp, color = BeeGray.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+        Text(
+            "Tap the radar button below to discover devices on your network",
+            fontSize = 14.sp,
+            color = BeeGray.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center
+        )
         Spacer(modifier = Modifier.height(24.dp))
-        Icon(Icons.Default.TouchApp, contentDescription = "Tap", modifier = Modifier.size(40.dp), tint = HoneyYellow.copy(alpha = 0.7f))
+        Icon(
+            Icons.Default.TouchApp,
+            contentDescription = "Tap",
+            modifier = Modifier.size(40.dp),
+            tint = HoneyYellow.copy(alpha = 0.7f)
+        )
     }
 }
 
 @Composable
 fun SearchingDeviceState() {
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        val infiniteTransition = rememberInfiniteTransition()
+        val infiniteTransition = rememberInfiniteTransition(label = "searching")
         val scale by infiniteTransition.animateFloat(
             initialValue = 1f,
             targetValue = 1.2f,
-            animationSpec = infiniteRepeatable(animation = tween(800, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse)
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "scale"
         )
-        Text("🐝", fontSize = 64.sp, modifier = Modifier.scale(scale))
+        Text(
+            "🐝",
+            fontSize = 64.sp,
+            modifier = Modifier.scale(scale)
+        )
         Spacer(modifier = Modifier.height(16.dp))
-        CircularProgressIndicator(modifier = Modifier.size(40.dp), color = HoneyYellow, strokeWidth = 3.dp)
+        CircularProgressIndicator(
+            modifier = Modifier.size(40.dp),
+            color = HoneyYellow,
+            strokeWidth = 3.dp
+        )
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Scanning for bees...", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = BeeGray)
+        Text(
+            "Scanning for bees...",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = BeeGray
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Make sure other devices are on the same Wi-Fi network", fontSize = 14.sp, color = BeeGray.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+        Text(
+            "Make sure other devices are on the same Wi-Fi network",
+            fontSize = 14.sp,
+            color = BeeGray.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center
+        )
     }
 }
 
 @Composable
 fun DeviceCard(device: Device, unreadCount: Int, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(
-            indication = androidx.compose.material.ripple.rememberRipple(),
-            interactionSource = remember { MutableInteractionSource() }
-        ) { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                indication = androidx.compose.material.ripple.rememberRipple(),
+                interactionSource = remember { MutableInteractionSource() }
+            ) { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 6.dp
+        )
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(56.dp).clip(CircleShape).background(HoneyYellow), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Person, contentDescription = "User", modifier = Modifier.size(32.dp), tint = BeeBlack)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(HoneyYellow),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = "User",
+                    modifier = Modifier.size(32.dp),
+                    tint = BeeBlack
+                )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(device.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = BeeBlack)
+                    Text(
+                        device.name,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = BeeBlack
+                    )
                     if (unreadCount > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(Color.Red), contentAlignment = Alignment.Center) {
-                            Text(unreadCount.toString(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(Color.Red),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (unreadCount > 9) "9+" else unreadCount.toString(),
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF4CAF50)))
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF4CAF50))
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Online", fontSize = 12.sp, color = BeeGray)
                 }
             }
 
-            Icon(Icons.Default.ChevronRight, contentDescription = "Chat", tint = HoneyGold)
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = "Chat",
+                tint = HoneyGold
+            )
         }
     }
 }
