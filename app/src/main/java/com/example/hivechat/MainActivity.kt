@@ -59,6 +59,14 @@ class MainActivity : ComponentActivity() {
             ) {
                 permissionsToRequest.add(Manifest.permission.NEARBY_WIFI_DEVICES)
             }
+            // Also check for POST_NOTIFICATIONS for Android 13+
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         } else {
             // For older Android versions
             if (ContextCompat.checkSelfPermission(
@@ -70,6 +78,18 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // ACCESS_WIFI_STATE and CHANGE_WIFI_STATE are normal permissions (no runtime request needed)
+        // But we can still add ACCESS_COARSE_LOCATION for better compatibility
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+        }
+
         if (permissionsToRequest.isNotEmpty()) {
             requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
@@ -78,7 +98,12 @@ class MainActivity : ComponentActivity() {
     private fun showPermissionRationaleDialog() {
         AlertDialog.Builder(this)
             .setTitle("Permissions Required")
-            .setMessage("This app needs a few permissions to function properly. Please grant them in the app settings.")
+            .setMessage(
+                "HiveChat needs the following permissions to work:\n\n" +
+                        "• Location/Nearby Devices: To discover other devices on WiFi\n" +
+                        "• WiFi Direct: For peer-to-peer connections\n\n" +
+                        "Please grant these permissions in Settings."
+            )
             .setPositiveButton("Go to Settings") { _, _ ->
                 // Intent to open app settings
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
@@ -89,7 +114,14 @@ class MainActivity : ComponentActivity() {
             .setNegativeButton("Cancel") { dialog, _ ->
                 dialog.dismiss()
             }
+            .setCancelable(false)
             .create()
             .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Check permissions again when returning from settings
+        requestNecessaryPermissions()
     }
 }

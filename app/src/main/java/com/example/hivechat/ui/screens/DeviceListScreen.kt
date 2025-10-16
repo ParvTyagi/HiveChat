@@ -28,7 +28,8 @@ import androidx.compose.ui.unit.sp
 import com.example.hivechat.R
 import com.example.hivechat.model.Device
 import com.example.hivechat.ui.theme.*
-
+import com.example.hivechat.ui.components.WiFiDirectDialog
+import com.example.hivechat.ui.components.HotspotInstructionsDialog
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceListScreen(
@@ -138,6 +139,7 @@ fun DeviceListScreen(
                 }
             }
         }
+
     ) { padding ->
         Column(
             modifier = Modifier
